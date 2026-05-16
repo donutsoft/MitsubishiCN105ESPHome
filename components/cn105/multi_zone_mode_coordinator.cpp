@@ -142,10 +142,24 @@ climate::ClimateMode selectCoordinatedMode(
     }
 
     const MultiZoneModeCoordinatorData& local = local_it->second;
+    // If all zones are either off or requesting the same mode, use that mode.
+    bool all_same_or_off = true;
+    for (const auto& kvp : state.data) {
+        const climate::ClimateMode mode = kvp.second.requested_mode;
+
+        if (mode != climate::CLIMATE_MODE_OFF &&
+            mode != local.requested_mode) {
+            all_same_or_off = false;
+            break;
+        }
+    }
+
     if (local.requested_mode == climate::CLIMATE_MODE_OFF ||
-        !isCoordinatedClimateMode(local.requested_mode)) {
+        !isCoordinatedClimateMode(local.requested_mode) ||
+        all_same_or_off) {
         return local.requested_mode;
     }
+
     if (!hasTemperatureValue(local.current_temperature)) {
         return current_mode;
     }
