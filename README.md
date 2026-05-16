@@ -292,7 +292,7 @@ climate:
 
 #### Multi-zone mode coordinator
 
-`multi_zone_mode_coordinator` is optional. Enable it for multisplit systems, where multiple CN105-controlled indoor units share the same outdoor unit and you want them to coordinate heat/cool decisions. Under normal circumstances, conflicting requests from different indoor heads may cause the outdoor unit to simply turn off. The multi-zone mode coordinator lets the heads negotiate a dominant setting instead. Each device publishes its requested mode, setpoint, and current temperature over MQTT, then uses the shared zone state to decide whether its own unit should actively heat, cool/dry/fan, or stay off.
+`multi_zone_mode_coordinator` is optional. Enable it for multisplit systems, where multiple CN105-controlled indoor units share the same outdoor unit and you want them to coordinate heat/cool decisions. Under normal circumstances, conflicting requests from different indoor heads may cause the outdoor unit to simply turn off. The multi-zone mode coordinator lets the heads negotiate a shared setting instead. Each device publishes its requested mode, setpoint, and current temperature over MQTT, then sums the signed temperature demand across the shared zone state to decide whether its own unit should actively heat, cool/dry/fan, or stay off.
 
 MQTT must be enabled on every ESPHome device that participates. Use the same `topic` on every zone connected to the same outdoor unit, and use a unique topic for each outdoor unit. Each zone is identified by its climate `id`, so those IDs must be unique within the group.
 

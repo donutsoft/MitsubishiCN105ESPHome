@@ -11,7 +11,7 @@
 // Multi-zone mode coordinator lets multiple indoor units that share one outdoor unit make
 // the same heat/cool decision. Each zone publishes its requested mode, setpoint,
 // and current temperature on the shared MQTT topic. Every zone keeps the newest
-// non-stale values from the other zones, then compares all zones by demand.
+// non-stale values from the other zones, then combines all zones by demand.
 //
 // Demand is represented as a temperature delta:
 //   delta = current temperature - the relevant target temperature
@@ -23,11 +23,10 @@
 // and fan-only use the high target when available; auto/heat_cool use the
 // low/high range or a small range around the single target.
 //
-// The zone with the largest absolute delta is the dominant demand. The 
-// local unit only turns on when its own delta is past that same threshold in the 
-// same direction as the dominant delta: negative plus negative runs heat, 
-// positive plus positive runs cool/dry/fan, and any mismatch or satisfied local zone 
-// turns this unit off.
+// The sum of all signed deltas is the shared demand. The local unit only turns
+// on when its own delta is past the same threshold in the same direction as the
+// shared demand: negative plus negative runs heat, positive plus positive runs
+// cool/dry/fan, and any mismatch or satisfied local zone turns this unit off.
 using namespace esphome;
 
 namespace {
@@ -135,7 +134,7 @@ float calculateZoneDemandDelta(const MultiZoneModeCoordinatorData& data) {
 climate::ClimateMode selectCoordinatedMode(
     const MultiZoneModeCoordinator& state,
     climate::ClimateMode current_mode,
-    float dominant_delta) {
+    float net_demand_delta) {
     const auto local_it = state.data.find(state.climate_id);
     if (local_it == state.data.end()) {
         return current_mode;
@@ -165,12 +164,12 @@ climate::ClimateMode selectCoordinatedMode(
     }
 
     const float local_delta = calculateZoneDemandDelta(local);
-    if (dominant_delta < -MULTI_ZONE_MODE_COORDINATOR_MINIMUM_DELTA &&
+    if (net_demand_delta < -MULTI_ZONE_MODE_COORDINATOR_MINIMUM_DELTA &&
         local_delta < -MULTI_ZONE_MODE_COORDINATOR_MINIMUM_DELTA) {
         return climate::CLIMATE_MODE_HEAT;
     }
 
-    if (dominant_delta > MULTI_ZONE_MODE_COORDINATOR_MINIMUM_DELTA &&
+    if (net_demand_delta > MULTI_ZONE_MODE_COORDINATOR_MINIMUM_DELTA &&
         local_delta > MULTI_ZONE_MODE_COORDINATOR_MINIMUM_DELTA) {
         if (local.requested_mode == climate::CLIMATE_MODE_DRY) {
             return climate::CLIMATE_MODE_DRY;
@@ -391,19 +390,17 @@ void CN105Climate::reconcileMultiZoneMode() {
         return;
     }
 
-    float dominant_delta = 0.0f;
+    float net_demand_delta = 0.0f;
     for (const auto& kvp : this->multi_zone_mode_coordinator_.data) {
-        const float delta = calculateZoneDemandDelta(kvp.second);
-        if (std::fabs(delta) > std::fabs(dominant_delta)) {
-            dominant_delta = delta;
-        }
+        net_demand_delta += calculateZoneDemandDelta(kvp.second);
     }
 
-    if (std::fabs(dominant_delta) <= MULTI_ZONE_MODE_COORDINATOR_MINIMUM_DELTA) {
-        dominant_delta = 0.0f;
+    if (std::fabs(net_demand_delta) <= MULTI_ZONE_MODE_COORDINATOR_MINIMUM_DELTA) {
+        net_demand_delta = 0.0f;
     }
 
-    const climate::ClimateMode effective_mode = selectCoordinatedMode(this->multi_zone_mode_coordinator_, this->mode, dominant_delta);
+    const climate::ClimateMode effective_mode = selectCoordinatedMode(
+        this->multi_zone_mode_coordinator_, this->mode, net_demand_delta);
     this->applyCoordinatedMode(effective_mode);
 }
 
