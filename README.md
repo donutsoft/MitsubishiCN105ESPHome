@@ -290,6 +290,50 @@ climate:
 > [!TIP]
 > An `update_interval` between 1s and 4s is recommended, because the underlying process divides this into three separate requests which need time to complete. If some updates get "missed" from your heatpump, consider making this interval longer.
 
+#### Multi-zone mode coordinator
+
+`multi_zone_mode_coordinator` is optional. Enable it for multisplit systems, where multiple CN105-controlled indoor units share the same outdoor unit and you want them to coordinate heat/cool decisions. Under normal circumstances, conflicting requests from different indoor heads may cause the outdoor unit to simply turn off. The multi-zone mode coordinator lets the heads negotiate a dominant setting instead. Each device publishes its requested mode, setpoint, and current temperature over MQTT, then uses the shared zone state to decide whether its own unit should actively heat, cool/dry/fan, or stay off.
+
+MQTT must be enabled on every ESPHome device that participates. Use the same `topic` on every zone connected to the same outdoor unit, and use a unique topic for each outdoor unit. Each zone is identified by its climate `id`, so those IDs must be unique within the group.
+
+> [!WARNING]
+> All indoor heads connected to the same outdoor unit must be connected to MQTT and configured with the same unique `multi_zone_mode_coordinator` topic for that outdoor unit. If any head on that outdoor unit is omitted, or if multiple outdoor units share one topic, the zones will make decisions with incorrect demand information, which may result in unpredictable behavior.
+
+```yaml
+mqtt:
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+
+climate:
+  - platform: cn105
+    id: living_room_hp
+    name: "Living Room Heat Pump"
+    update_interval: 2s
+    multi_zone_mode_coordinator:
+      topic: mitsubishi/multi_zone_mode_coordinator/main_floor
+      publish_interval: 30s
+      stale_after: 5min
+```
+
+Use the same block on the other indoor units, changing `name` and `id` as needed:
+
+```yaml
+climate:
+  - platform: cn105
+    id: bedroom_hp
+    name: "Bedroom Heat Pump"
+    update_interval: 2s
+    multi_zone_mode_coordinator:
+      topic: mitsubishi/multi_zone_mode_coordinator/main_floor
+```
+
+Available options:
+
+- `topic` (required): shared MQTT topic used by every zone connected to one outdoor unit. This topic must be unique per outdoor unit.
+- `publish_interval` (optional, default `30s`): how often the device republishes its local zone state.
+- `stale_after` (optional, default `5min`): how long remote zone state remains valid without a fresh update.
+
 #### Logger granularity
 
 This firmware supports detailed log granularity for troubleshooting. Below is the full list of logger components and recommended defaults.
@@ -317,6 +361,7 @@ logger:
     Header: INFO
     Decoder: INFO
     CONTROL_WANTED_SETTINGS: INFO
+    MULTI_ZONE_MODE_COORDINATOR: INFO
 # Swap the above settings with these debug settings for development or troubleshooting
 #  level: DEBUG
 #  logs:
@@ -336,6 +381,7 @@ logger:
 #    Header: INFO
 #    Decoder : DEBUG
 #    CONTROL_WANTED_SETTINGS: DEBUG
+#    MULTI_ZONE_MODE_COORDINATOR: DEBUG
 ```
 
 ### Step 6: Build the project and install

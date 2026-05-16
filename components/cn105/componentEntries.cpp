@@ -45,6 +45,7 @@ void CN105Climate::setup() {
     this->supports_dual_setpoint_ = this->traits_.has_feature_flags(climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
     ESP_LOGI(TAG, "Dual setpoint support configured: %s", this->supports_dual_setpoint_ ? "YES" : "NO");
     ESP_LOGI(TAG, "Horizontal vanes configured: %d", this->horizontal_vanes_);
+    this->setupMultiZoneModeCoordinator();
 }
 
 
@@ -55,6 +56,7 @@ void CN105Climate::setup() {
 void CN105Climate::loop() {
     // Bootstrap connection CN105 (UART + CONNECT) from loop()
     this->maybe_start_connection_();
+    this->multiZoneCoordinationLoop();
 
     // As long as the connection is not successful, we do not launch ANY cycle/write (otherwise it short-circuits the delay).
     // We still continue to read/process the input in order to detect 0x7A/0x7B (connection success).

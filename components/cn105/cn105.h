@@ -26,6 +26,7 @@
 #include "localization.h"
 #include "info_request.h"
 #include "request_scheduler.h"
+#include "multi_zone_mode_coordinator.h"
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/components/button/button.h>
 #include <esphome/components/binary_sensor/binary_sensor.h>
@@ -111,6 +112,10 @@ namespace esphome {
         
         void set_remote_temperature_control_sensor(esphome::binary_sensor::BinarySensor* sensor);
         void set_remote_temperature_margin(float margin);
+        void set_multi_zone_mode_coordinator_topic(const std::string& topic);
+        void set_multi_zone_mode_coordinator_climate_id(const std::string& climate_id);
+        void set_multi_zone_mode_coordinator_publish_interval(uint32_t interval_ms);
+        void set_multi_zone_mode_coordinator_stale_after(uint32_t stale_after_ms);
 
         //sensor::Sensor* compressor_frequency_sensor;
         binary_sensor::BinarySensor* iSee_sensor_ = nullptr;
@@ -404,6 +409,17 @@ namespace esphome {
         void updateExtraSelectComponents(heatpumpSettings& settings);
         void updateTargetTemperaturesFromSettings(float temperature);
 
+        // Multi-zone mode coordinator
+        void setupMultiZoneModeCoordinator();
+        void multiZoneCoordinationLoop();
+        void setRequestedMultiZoneMode(climate::ClimateMode requested_mode);
+        void syncLocalMultiZoneState(bool force_apply = false);
+        void publishMultiZoneState(bool force = false);
+        void receiveMultiZoneState(const std::string& payload);
+        void reconcileMultiZoneMode();
+        bool shouldShowMultiZoneRequestedModeInUi() const;
+        void applyCoordinatedMode(climate::ClimateMode effective_mode);
+
         //void statusChanged();
         void updateAction();
         void setActionIfOperatingTo(climate::ClimateAction action);
@@ -529,5 +545,7 @@ namespace esphome {
         bool supports_dual_setpoint_ = false;
         int horizontal_vanes_{ 1 }; // Kept for legacy logging if needed, or can be removed if unused.
         VaneType vane_type_{ VaneType::STANDARD };
+
+        MultiZoneModeCoordinator multi_zone_mode_coordinator_;
     };
 }

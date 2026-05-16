@@ -114,6 +114,10 @@ CONF_REMOTE_TEMPERATURE_CONTROL_SENSOR = "remote_temperature_control_sensor"
 #CONF_REMOTE_TEMPERATURE_MARGIN = "remote_temperature_margin"
 CONF_TEMPERATURE_MARGIN = "temperature_margin"
 CONF_POWER_UNIT_IS_BTU = "power_unit_is_btu"
+CONF_MULTI_ZONE_MODE_COORDINATOR = "multi_zone_mode_coordinator"
+CONF_TOPIC = "topic"
+CONF_PUBLISH_INTERVAL = "publish_interval"
+CONF_STALE_AFTER = "stale_after"
 
 # Support explicite du DUAL setpoint via YAML
 CONF_DUAL_SETPOINT = "dual_setpoint"
@@ -364,6 +368,14 @@ HARDWARE_SETTING_SCHEMA = cv.Schema(
     }
 )
 
+MULTI_ZONE_MODE_COORDINATOR_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TOPIC): cv.string,
+        cv.Optional(CONF_PUBLISH_INTERVAL, default="30s"): cv.update_interval,
+        cv.Optional(CONF_STALE_AFTER, default="5min"): cv.update_interval,
+    }
+)
+
 CONFIG_SCHEMA = (
     climate.climate_schema(CN105Climate)
     .extend(
@@ -434,6 +446,7 @@ CONFIG_SCHEMA = (
             ): REMOTE_TEMPERATURE_CONTROL_SENSOR_SCHEMA,
             #cv.Optional(CONF_REMOTE_TEMPERATURE_MARGIN, default=0.4): cv.positive_float,
             cv.Optional(CONF_POWER_UNIT_IS_BTU, default=False): cv.boolean,
+            cv.Optional(CONF_MULTI_ZONE_MODE_COORDINATOR): MULTI_ZONE_MODE_COORDINATOR_SCHEMA,
             cv.Optional(CONF_SUPPORTS, default={}): cv.Schema(
                 {
                     cv.Optional(
@@ -471,6 +484,20 @@ def to_code(config):
 
     cg.add(var.set_installer_mode(config[CONF_INSTALLER_MODE]))
     cg.add(var.set_power_unit_is_btu(config[CONF_POWER_UNIT_IS_BTU]))
+    if CONF_MULTI_ZONE_MODE_COORDINATOR in config:
+        coordinator_config = config[CONF_MULTI_ZONE_MODE_COORDINATOR]
+        cg.add(var.set_multi_zone_mode_coordinator_topic(coordinator_config[CONF_TOPIC]))
+        cg.add(var.set_multi_zone_mode_coordinator_climate_id(str(config[CONF_ID])))
+        cg.add(
+            var.set_multi_zone_mode_coordinator_publish_interval(
+                int(coordinator_config[CONF_PUBLISH_INTERVAL].total_milliseconds)
+            )
+        )
+        cg.add(
+            var.set_multi_zone_mode_coordinator_stale_after(
+                int(coordinator_config[CONF_STALE_AFTER].total_milliseconds)
+            )
+        )
 
     cg.add(uart_var.set_data_bits(8))
     cg.add(uart_var.set_parity(UARTParityOptions.UART_CONFIG_PARITY_EVEN))

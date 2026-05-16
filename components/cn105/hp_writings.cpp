@@ -298,6 +298,9 @@ void CN105Climate::publishWantedSettingsStateToHA() {
 
     if ((this->wantedSettings.mode != nullptr) || (this->wantedSettings.power != nullptr)) {
         checkPowerAndModeSettings(this->wantedSettings, false);
+        if (this->shouldShowMultiZoneRequestedModeInUi()) {
+            this->mode = this->multi_zone_mode_coordinator_.requested_mode;
+        }
         this->updateAction();       // update action info on HA climate component
     }
 
@@ -325,6 +328,7 @@ void CN105Climate::publishWantedSettingsStateToHA() {
 
     // publish to HA
     this->publish_state();
+    this->syncLocalMultiZoneState();
 
 }
 

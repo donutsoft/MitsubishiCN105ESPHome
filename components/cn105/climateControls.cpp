@@ -82,6 +82,7 @@ bool CN105Climate::processModeChange(const esphome::climate::ClimateCall& call) 
 
     ESP_LOGD("control", "Mode change asked");
     this->mode = *call.get_mode();
+    this->setRequestedMultiZoneMode(this->mode);
     this->controlMode();
     this->controlTemperature();
     return true;
@@ -260,6 +261,7 @@ void CN105Climate::finalizeControlIfUpdated(bool updated) {
     this->wantedSettings.lastChange = CUSTOM_MILLIS;
     this->debugSettings("control (wantedSettings)", this->wantedSettings);
     this->publish_state();
+    this->syncLocalMultiZoneState(true);
 }
 
 void CN105Climate::control(const esphome::climate::ClimateCall& call) {

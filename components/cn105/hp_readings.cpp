@@ -570,7 +570,11 @@ void CN105Climate::statusChanged(heatpumpStatus status) {
 
 void CN105Climate::publishStateToHA(heatpumpSettings& settings) {
 
-    if ((this->wantedSettings.mode == nullptr) && (this->wantedSettings.power == nullptr)) {        // to prevent overwriting a user demand
+    if (this->shouldShowMultiZoneRequestedModeInUi()) {
+        this->currentSettings.power = settings.power;
+        this->currentSettings.mode = settings.mode;
+        this->mode = this->multi_zone_mode_coordinator_.requested_mode;
+    } else if ((this->wantedSettings.mode == nullptr) && (this->wantedSettings.power == nullptr)) {        // to prevent overwriting a user demand
         checkPowerAndModeSettings(settings);
     }
 
@@ -608,6 +612,7 @@ void CN105Climate::publishStateToHA(heatpumpSettings& settings) {
 
     // publish to HA
     this->publish_state();
+    this->syncLocalMultiZoneState();
 
 }
 
