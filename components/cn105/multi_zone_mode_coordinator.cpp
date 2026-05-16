@@ -288,10 +288,6 @@ void CN105Climate::syncLocalMultiZoneState(bool force_apply) {
         return;
     }
 
-    if (!this->multi_zone_mode_coordinator_.requested_mode_initialized) {
-        this->multi_zone_mode_coordinator_.requested_mode = this->mode;
-        this->multi_zone_mode_coordinator_.requested_mode_initialized = true;
-    }
     if (force_apply) {
         this->multi_zone_mode_coordinator_.force_apply = true;
     }
@@ -312,6 +308,10 @@ void CN105Climate::publishMultiZoneState(bool force) {
     }
 
     if (!this->multi_zone_mode_coordinator_.requested_mode_initialized) {
+        if (this->currentSettings.power == nullptr || this->currentSettings.mode == nullptr) {
+            ESP_LOGD(LOG_MULTI_ZONE_MODE_COORDINATOR_TAG, "Local heat pump mode is not known yet; delaying coordinator publish.");
+            return;
+        }
         this->multi_zone_mode_coordinator_.requested_mode = this->mode;
         this->multi_zone_mode_coordinator_.requested_mode_initialized = true;
     }
@@ -414,6 +414,10 @@ bool CN105Climate::shouldShowMultiZoneRequestedModeInUi() const {
 }
 
 void CN105Climate::applyCoordinatedMode(climate::ClimateMode effective_mode) {
+    if (this->multi_zone_mode_coordinator_.data.find(this->multi_zone_mode_coordinator_.climate_id) == this->multi_zone_mode_coordinator_.data.end()) {
+        return;
+    }
+
     if (this->multi_zone_mode_coordinator_.effective_mode_initialized &&
         this->multi_zone_mode_coordinator_.effective_mode == effective_mode &&
         !this->multi_zone_mode_coordinator_.force_apply) {
