@@ -1,13 +1,17 @@
-# Replace the placeholder sensor with a real room sensor that publishes Celsius.
+# Send fresh room measurements in Celsius through the existing API service.
 api:
   reboot_timeout: 0s
+  services:
+    - service: set_remote_temperature
+      variables:
+        temperature: float
+      then:
+        - lambda: 'id(heatpump).set_remote_temperature(temperature);'
 climate:
 - id: heatpump
   name: Heat pump
   platform: cn105
   remote_temperature_keepalive_interval: 20s
-  remote_temperature_source:
-    sensor_id: room_temperature
   remote_temperature_timeout: 120s
   uart_id: hp_uart
   short_cycle_protection_switch:
@@ -26,13 +30,6 @@ external_components:
     type: local
 logger:
   baud_rate: 0
-sensor:
-- device_class: temperature
-  id: room_temperature
-  name: Room temperature
-  platform: template
-  unit_of_measurement: "°C"
-  update_interval: never
 uart:
   baud_rate: 2400
   id: hp_uart

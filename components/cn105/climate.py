@@ -599,8 +599,6 @@ def validate_short_cycle_protection(config):
         return config
     if config.get(CONF_LOSSNAY, False):
         raise cv.Invalid("Short-cycle protection requires a heat pump, not Lossnay")
-    if CONF_REMOTE_TEMP_SOURCE not in config:
-        raise cv.Invalid("Short-cycle protection requires remote_temperature_source")
     if not 10000 <= config[CONF_REMOTE_TEMP_TIMEOUT].total_milliseconds <= 120000:
         raise cv.Invalid("Short-cycle protection requires remote_temperature_timeout between 10s and 120s")
     return config

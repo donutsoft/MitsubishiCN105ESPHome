@@ -1405,12 +1405,16 @@ switch to enable it. No MQTT, coordinator, or other head is required.
 climate:
   - platform: cn105
     # Existing UART/name/device configuration goes here.
-    remote_temperature_source:
-      sensor_id: room_temperature
     remote_temperature_timeout: 120s
     short_cycle_protection_switch:
       name: Short cycle protection
 ```
+
+Keep your existing API service calling `id(heatpump).set_remote_temperature(temperature)`
+(using your climate ID). No intermediate ESPHome sensor is needed. Alternatively,
+`remote_temperature_source` can still subscribe to a sensor directly. Both paths
+use the same sample setter and freshness timeout. See the
+[API service example](examples/short-cycle-protection/heatpump.yaml).
 
 The switch starts OFF. When enabled in HEAT mode, temperatures between target
 +0.5°C and target +1.5°C are reported to the head as target +0.5°C. The actual
