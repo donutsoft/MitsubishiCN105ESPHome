@@ -1,0 +1,44 @@
+# Replace the placeholder sensor with a real room sensor that publishes Celsius.
+api:
+  reboot_timeout: 0s
+climate:
+- id: heatpump
+  name: Heat pump
+  platform: cn105
+  remote_temperature_keepalive_interval: 20s
+  remote_temperature_source:
+    sensor_id: room_temperature
+  remote_temperature_timeout: 120s
+  uart_id: hp_uart
+  short_cycle_protection_switch:
+    name: Short cycle protection
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+esphome:
+  name: short-cycle-test
+external_components:
+- components:
+  - cn105
+  source:
+    path: ../../components
+    type: local
+logger:
+  baud_rate: 0
+sensor:
+- device_class: temperature
+  id: room_temperature
+  name: Room temperature
+  platform: template
+  unit_of_measurement: "°C"
+  update_interval: never
+uart:
+  baud_rate: 2400
+  id: hp_uart
+  parity: EVEN
+  rx_pin: GPIO16
+  tx_pin: GPIO17
+wifi:
+  password: replace-with-your-password
+  ssid: replace-with-your-ssid

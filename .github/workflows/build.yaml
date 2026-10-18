@@ -41,6 +41,7 @@ jobs:
       matrix:
         version: [stable]
         variant: 
+          - examples/short-cycle-protection/heatpump
           - examples/root-configs/esp32-test
           - examples/root-configs/lossnay-test
           - examples/root-configs/hp-debug

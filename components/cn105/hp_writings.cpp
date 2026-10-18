@@ -126,6 +126,13 @@ void CN105Climate::writePacket(uint8_t* packet, int length, bool checkIsActive) 
 
 void CN105Climate::try_write_pending_packet() {
     if (!this->has_pending_packet_) return;
+    if (short_cycle_switch_ && pending_packet_len_ > 8 && pending_packet_[1] == 0x41 && pending_packet_[5] == 0x07) {
+        // Recompute at retry time: source freshness, switch, target or mode may have changed.
+        has_pending_packet_ = false;
+        shouldSendExternalTemperature_ = true;
+        last_remote_temp_sent_ = NAN;
+        return;
+    }
     if (!this->isUARTReady_()) {
         this->reconnectUART();
         this->set_timeout("write", 2000, [this]() { this->try_write_pending_packet(); });
@@ -326,6 +333,8 @@ void CN105Climate::createInfoPacket(uint8_t* packet, uint8_t code) {
 void CN105Climate::sendRemoteTemperaturePacket() {
     if (!this->profile_->allow_operation(cn105::ProfileFeature::REMOTE_TEMPERATURE)) return;
 
+    const float wire_temperature = getDeadbandAdjustedTemperature(remoteTemperature_);
+
     // Build and send the remote temperature packet (0x07) without affecting watchdog/keep-alive timers
 
     // Debounce logic: avoid flooding the bus with identical temperature values
@@ -335,7 +344,7 @@ void CN105Climate::sendRemoteTemperaturePacket() {
         ? std::max(this->remote_temp_keepalive_interval_ms_ / 2, (uint32_t)5000)
         : 5000;  // Default 5s if keep-alive disabled
 
-    bool temp_changed = (this->remoteTemperature_ != this->last_remote_temp_sent_);
+    bool temp_changed = (wire_temperature != this->last_remote_temp_sent_);
     uint32_t elapsed = now - this->last_remote_temp_send_ms_;
 
     if (!temp_changed && elapsed < min_interval) {
@@ -354,11 +363,11 @@ void CN105Climate::sendRemoteTemperaturePacket() {
                 "If you have a manual heartbeat/interval in YAML, consider removing it - "
                 "the built-in keep-alive (every %lu ms) handles this automatically. "
                 "See 'remote_temperature_keepalive_interval' option in documentation.",
-                this->remoteTemperature_, (unsigned long)this->remote_temp_keepalive_interval_ms_);
+                wire_temperature, (unsigned long)this->remote_temp_keepalive_interval_ms_);
         }
 
         ESP_LOGD(LOG_REMOTE_TEMP, "Debounce: skipping remote temp send (same value %.1f, %lu ms since last send, min interval %lu ms, skip #%d)",
-            this->remoteTemperature_, (unsigned long)elapsed, (unsigned long)min_interval, this->remote_temp_debounce_skip_count_);
+            wire_temperature, (unsigned long)elapsed, (unsigned long)min_interval, this->remote_temp_debounce_skip_count_);
         return;
     }
 
@@ -375,12 +384,12 @@ void CN105Climate::sendRemoteTemperaturePacket() {
     packet[21] = chkSum;
 
     ESP_LOGD(LOG_REMOTE_TEMP, "Sending remote temperature packet... -> %.1f%s",
-        this->remoteTemperature_, temp_changed ? " (changed)" : " (keep-alive)");
+        wire_temperature, temp_changed ? " (changed)" : " (keep-alive)");
     writePacket(packet, PACKET_LEN);
 
     // Update debounce tracking
     this->last_remote_temp_send_ms_ = now;
-    this->last_remote_temp_sent_ = this->remoteTemperature_;
+    this->last_remote_temp_sent_ = wire_temperature;
 }
 
 void CN105Climate::sendRemoteTemperature() {

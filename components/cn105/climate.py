@@ -532,6 +532,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_AUTO_SUB_MODE_SENSOR): AUTO_SUB_MODE_SENSOR_SCHEMA,
             cv.Optional(CONF_ERROR_CODE_SENSOR): ERROR_CODE_SENSOR_SCHEMA,
             cv.Optional(CONF_REMOTE_TEMP_SOURCE): REMOTE_TEMP_SOURCE_SCHEMA,
+            cv.Optional("short_cycle_protection_switch"): switch.switch_schema(
+                HVACOptionSwitch, block_inverted=True, default_restore_mode="ALWAYS_OFF"
+            ),
             cv.Optional(CONF_REMOTE_TEMP_TIMEOUT, default="never"): cv.All(
                 cv.update_interval
             ),
@@ -591,7 +594,19 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
 )
 
-CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, validate_lossnay_config)
+def validate_short_cycle_protection(config):
+    if "short_cycle_protection_switch" not in config:
+        return config
+    if config.get(CONF_LOSSNAY, False):
+        raise cv.Invalid("Short-cycle protection requires a heat pump, not Lossnay")
+    if CONF_REMOTE_TEMP_SOURCE not in config:
+        raise cv.Invalid("Short-cycle protection requires remote_temperature_source")
+    if not 10000 <= config[CONF_REMOTE_TEMP_TIMEOUT].total_milliseconds <= 120000:
+        raise cv.Invalid("Short-cycle protection requires remote_temperature_timeout between 10s and 120s")
+    return config
+
+
+CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, validate_lossnay_config, validate_short_cycle_protection)
 
 
 @coroutine
@@ -873,6 +888,12 @@ def to_code(config):
             config[CONF_ERROR_CODE_SENSOR]
         )
         cg.add(var.set_error_code_sensor(tsensor_var))
+
+    if "short_cycle_protection_switch" in config:
+        conf = config["short_cycle_protection_switch"]
+        control = yield switch.new_switch(conf)
+        yield cg.register_component(control, conf)
+        cg.add(var.set_short_cycle_protection_switch(control))
 
     if CONF_REMOTE_TEMP_SOURCE in config:
         rts_config = config[CONF_REMOTE_TEMP_SOURCE]

@@ -63,6 +63,8 @@ void logCheckWantedSettingsMutex(wantedHeatpumpSettings& settings) {
 }
 void CN105Climate::controlDelegate(const esphome::climate::ClimateCall& call) {
     ESP_LOGD("control", "espHome control() interface method called...");
+    if (!short_cycle_own_call_ && call.get_mode().has_value())
+        short_cycle_.user_mode_changed(); // Includes manual OFF while already automatically OFF.
     bool updated = false;
 
     logCheckWantedSettingsMutex(this->wantedSettings);
@@ -238,6 +240,11 @@ void CN105Climate::setAirflowControlSetting(const char* setting) {
 }
 
 void CN105Climate::set_remote_temperature(float setting) {
+    if (short_cycle_switch_) {
+        short_cycle_sample_seen_ = std::isfinite(setting) && setting >= 8 && setting <= 60;
+        short_cycle_sample_ms_ = CUSTOM_MILLIS;
+        if (!short_cycle_sample_seen_) setting = 0; // Invalid source: use internal sensing.
+    }
     if (!this->profile_->accepts_remote_temperature(setting)) return;
     // Each accepted sample refreshes the watchdog, even if its value is unchanged (#474).
     this->remoteTemperature_ = setting;

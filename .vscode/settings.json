@@ -74,5 +74,6 @@
     "system_error": "cpp",
     "valarray": "cpp",
     "ratio": "cpp"
-  }
+  },
+  "cmake.sourceDirectory": "/Users/donut/development/MitsubishiCN105ESPHome_donut/tests/unit"
 }

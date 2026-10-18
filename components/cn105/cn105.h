@@ -4,6 +4,7 @@
 #include "cn105_protocol.h"
 #include "protocol_profile.h"
 #include "frame_parser.h"
+#include "short_cycle_protection.h"
 #include "esphome/components/uart/uart.h"
 #include "heatpumpFunctions.h"
 #include "van_orientation_select.h"
@@ -234,6 +235,9 @@ namespace esphome {
         void sendRemoteTemperaturePacket();  // Send packet only, without resetting watchdog
         void sendWantedRunStates();
         float getDeadbandAdjustedTemperature(float remoteTemperature);
+        void set_short_cycle_protection_switch(HVACOptionSwitch* control);
+        void update_short_cycle_protection();
+        bool short_cycle_sample_fresh() const;
 
         void set_remote_temp_timeout(uint32_t timeout);
 
@@ -441,6 +445,10 @@ namespace esphome {
         void finalizeControlIfUpdated(bool updated);
         void createPacket(uint8_t* packet);
         void createInfoPacket(uint8_t* packet, uint8_t code);
+        HVACOptionSwitch* short_cycle_switch_{nullptr};
+        cn105::ShortCycleProtection short_cycle_;
+        bool short_cycle_own_call_{false}, short_cycle_sample_seen_{false};
+        uint32_t short_cycle_sample_ms_{0};
         heatpumpSettings currentSettings{};
         wantedHeatpumpSettings wantedSettings{};
         heatpumpRunStates currentRunStates{};

@@ -59,6 +59,7 @@ void CN105Climate::setup() {
  * This function is called repeatedly in the main program loop.
  */
 void CN105Climate::loop() {
+    this->update_short_cycle_protection();
     // Bootstrap connection CN105 (UART + CONNECT) from loop()
     this->maybe_start_connection_();
 
