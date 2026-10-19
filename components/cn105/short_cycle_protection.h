@@ -11,7 +11,7 @@ struct ShortCycleProtection {
     void user_mode_changed() { automatic_off = false; }
     Action update(bool heating, bool fresh, float actual, float target) {
         if (!fresh || !std::isfinite(actual) || !std::isfinite(target)) return NONE;
-        if (enabled && heating && !automatic_off && actual > target + 1.5f) {
+        if (enabled && heating && !automatic_off && actual > target + 2.0f) {
             automatic_off = true;
             return OFF;
         }
@@ -23,8 +23,8 @@ struct ShortCycleProtection {
     }
     float temperature(bool heating, float actual, float target) const {
         if (enabled && heating && std::isfinite(actual) && std::isfinite(target) &&
-            actual > target + 0.5f && actual <= target + 1.5f)
-            return target + 0.5f;
+            actual > target + 1.0f && actual <= target + 2.0f)
+            return target + 1.0f;
         return actual;
     }
 };

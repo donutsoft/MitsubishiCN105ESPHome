@@ -1417,13 +1417,13 @@ use the same sample setter and freshness timeout. See the
 [API service example](examples/short-cycle-protection/heatpump.yaml).
 
 The switch starts OFF. When enabled in HEAT mode, temperatures between target
-+0.5°C and target +1.5°C are reported to the head as target +0.5°C. The actual
-sensor reading is kept unchanged. Above target +1.5°C the head is commanded OFF;
++1.0°C and target +2.0°C are reported to the head as target +1.0°C. The actual
+sensor reading is kept unchanged. Above target +2.0°C the head is commanded OFF;
 below target +1.0°C an automatically stopped head can return to HEAT. Manual OFF
 through the climate entity cancels that restart, even when the head is already OFF.
 Other modes and fan settings are not changed by the feature.
 
-All offsets are **Celsius** (1.5°C = 2.7°F), regardless of display units. Supply an
+All offsets are **Celsius** (2.0°C = 3.6°F), regardless of display units. Supply an
 independent room sensor in Celsius with real acquisition updates, not a heartbeat
 that republishes a cached reading. Invalid/expired samples restore internal sensing
 and cannot trigger an automatic restart. Use a finite 10–120s source timeout.
