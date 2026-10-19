@@ -1048,7 +1048,7 @@ void HeatPumpProfile::sanitize_setpoints() {
 }
 
 void HeatPumpProfile::encode_remote_temperature(uint8_t* packet) {
-    HeatPumpProtocol::encode_remote_temperature(packet, hp_.getDeadbandAdjustedTemperature(hp_.remoteTemperature_));
+    HeatPumpProtocol::encode_remote_temperature(packet, hp_.getCoordinatedRemoteTemperature(hp_.remoteTemperature_));
 }
 
 void HeatPumpProfile::encode_run_states(uint8_t* packet) {

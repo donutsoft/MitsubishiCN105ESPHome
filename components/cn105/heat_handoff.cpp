@@ -11,6 +11,24 @@ namespace esphome {
 
 static const char *const HANDOFF_TAG = "heat_handoff";
 
+bool CN105Climate::remote_temperature_sample_fresh() const {
+    return remote_temperature_sample_seen_ &&
+           static_cast<uint32_t>(CUSTOM_MILLIS - remote_temperature_sample_ms_) <
+               remote_temp_timeout_;
+}
+
+float CN105Climate::getCoordinatedRemoteTemperature(float actual) {
+    if (!heat_handoff_.configured) return actual;
+    if (!remote_temperature_sample_fresh()) return 0;
+    const uint32_t now = CUSTOM_MILLIS;
+    const bool assignment_active = heat_handoff_states_ready_ &&
+        heat_handoff_assignment_fresh_(now) && heat_handoff_assignment_active_;
+    const float value = heat_handoff_.temperature(mode == climate::CLIMATE_MODE_HEAT,
+        true, actual, getTargetTemperature(), assignment_active,
+        heat_handoff_owner_ == heat_handoff_member_id_);
+    return std::round(value * 2) / 2;
+}
+
 void CN105Climate::set_heat_handoff_member_id(const std::string &member_id) {
     heat_handoff_member_id_ = member_id;
     heat_handoff_.configured = !member_id.empty();
@@ -161,7 +179,7 @@ void CN105Climate::publish_heat_handoff_state_(bool force) {
         !mqtt::global_mqtt_client->is_connected()) return;
     const uint32_t now = CUSTOM_MILLIS;
     const bool heating = mode == climate::CLIMATE_MODE_HEAT;
-    const bool fresh = short_cycle_sample_fresh();
+    const bool fresh = remote_temperature_sample_fresh();
     const float target = getTargetTemperature();
     const float error = std::isfinite(remoteTemperature_) && std::isfinite(target)
                             ? remoteTemperature_ - target : 99.0f;
@@ -225,13 +243,16 @@ bool CN105Climate::publish_heat_handoff_assignment_(bool active,
 }
 
 void CN105Climate::update_heat_handoff() {
-    if (!heat_handoff_.configured || !heat_handoff_mqtt_ready_) return;
+    if (!heat_handoff_.configured) return;
+    if (getCoordinatedRemoteTemperature(remoteTemperature_) != last_remote_temp_sent_)
+        shouldSendExternalTemperature_ = true;
+    if (!heat_handoff_mqtt_ready_) return;
     const uint32_t now = CUSTOM_MILLIS;
     publish_heat_handoff_state_();
 
     bool ready = heat_handoff_.enabled;
     const bool own_heating = mode == climate::CLIMATE_MODE_HEAT;
-    const bool own_fresh = short_cycle_sample_fresh();
+    const bool own_fresh = remote_temperature_sample_fresh();
     if (own_heating && !own_fresh) ready = false;
     for (const auto &peer : heat_handoff_peers_) {
         if (!heat_handoff_peer_fresh_(peer, now) || !peer.enabled ||

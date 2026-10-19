@@ -61,7 +61,6 @@ void CN105Climate::setup() {
  */
 void CN105Climate::loop() {
     this->update_heat_handoff();
-    this->update_short_cycle_protection();
     // Bootstrap connection CN105 (UART + CONNECT) from loop()
     this->maybe_start_connection_();
 

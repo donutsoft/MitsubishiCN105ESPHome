@@ -1396,47 +1396,6 @@ Refer to these for further understanding:
 
 This project is not affiliated with, endorsed by, or associated with Mitsubishi Electric Corporation. "Mitsubishi Electric" and the three-diamond logo are registered trademarks of Mitsubishi Electric Corporation. The use of these trademarks in this project is for identification purposes only, to indicate compatibility with their products.
 
-## Optional short-cycle protection
-
-Each head can independently apply the original heating overshoot clamp, with a
-switch to enable it. No MQTT, coordinator, or other head is required.
-
-```yaml
-climate:
-  - platform: cn105
-    # Existing UART/name/device configuration goes here.
-    remote_temperature_timeout: 120s
-    short_cycle_protection_switch:
-      name: Short cycle protection
-```
-
-Keep your existing API service calling `id(heatpump).set_remote_temperature(temperature)`
-(using your climate ID). No intermediate ESPHome sensor is needed. Alternatively,
-`remote_temperature_source` can still subscribe to a sensor directly. Both paths
-use the same sample setter and freshness timeout. See the
-[API service example](examples/short-cycle-protection/heatpump.yaml).
-
-The switch starts OFF. When enabled in HEAT mode, temperatures between target
-+1.0°C and target +2.0°C are reported to the head as target +1.0°C. The actual
-sensor reading is kept unchanged. Above target +2.0°C the head is commanded OFF;
-below target +1.0°C an automatically stopped head can return to HEAT. Manual OFF
-through the climate entity cancels that restart, even when the head is already OFF.
-Other modes and fan settings are not changed by the feature.
-
-All offsets are **Celsius** (2.0°C = 3.6°F), regardless of display units. Supply an
-independent room sensor in Celsius with real acquisition updates, not a heartbeat
-that republishes a cached reading. Invalid/expired samples restore internal sensing
-and cannot trigger an automatic restart. Use a finite 10–120s source timeout.
-
-Turning the switch OFF removes the clamp immediately. A head already stopped for
-excess temperature stays OFF until it cools below the restart threshold. To cancel
-that restart, send OFF to the climate entity. Restart ownership is not restored
-on reboot. Observable IR mode changes cancel ownership too, but a repeated IR OFF
-while the head is already OFF cannot be detected over CN105.
-
-This encourages longer heating runs without guaranteeing compressor speed or
-refrigerant distribution. Confirm actual OFF/bleed behavior on your equipment.
-
 ## Coordinated MQTT heat handoff
 
 `heat_handoff` coordinates heads on one outdoor unit by temperature error rather

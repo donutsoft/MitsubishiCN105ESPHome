@@ -30,7 +30,6 @@ include_directories(${CN105_SRC_DIR})
 # --- Test executable ---
 add_executable(cn105_tests
     "${CN105_SRC_DIR}/heatpump_functions_protocol.cpp"
-    test_short_cycle_protection.cpp
     test_heat_handoff.cpp
     test_checksum.cpp
     test_lookup_tables.cpp

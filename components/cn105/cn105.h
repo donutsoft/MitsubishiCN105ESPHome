@@ -4,7 +4,6 @@
 #include "cn105_protocol.h"
 #include "protocol_profile.h"
 #include "frame_parser.h"
-#include "short_cycle_protection.h"
 #include "heat_handoff.h"
 #include "esphome/components/uart/uart.h"
 #include "heatpumpFunctions.h"
@@ -235,10 +234,8 @@ namespace esphome {
         void sendRemoteTemperature();
         void sendRemoteTemperaturePacket();  // Send packet only, without resetting watchdog
         void sendWantedRunStates();
-        float getDeadbandAdjustedTemperature(float remoteTemperature);
-        void set_short_cycle_protection_switch(HVACOptionSwitch* control);
-        void update_short_cycle_protection();
-        bool short_cycle_sample_fresh() const;
+        float getCoordinatedRemoteTemperature(float remoteTemperature);
+        bool remote_temperature_sample_fresh() const;
 
         void set_heat_handoff_member_id(const std::string& member_id);
         void set_heat_handoff_coordinator_id(const std::string& coordinator_id);
@@ -463,10 +460,8 @@ namespace esphome {
         void finalizeControlIfUpdated(bool updated);
         void createPacket(uint8_t* packet);
         void createInfoPacket(uint8_t* packet, uint8_t code);
-        HVACOptionSwitch* short_cycle_switch_{nullptr};
-        cn105::ShortCycleProtection short_cycle_;
-        bool short_cycle_own_call_{false}, short_cycle_sample_seen_{false};
-        uint32_t short_cycle_sample_ms_{0};
+        bool remote_temperature_sample_seen_{false};
+        uint32_t remote_temperature_sample_ms_{0};
 
         struct HeatHandoffPeerState {
             std::string member_id;

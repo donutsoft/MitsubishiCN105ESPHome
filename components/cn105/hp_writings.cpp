@@ -126,7 +126,7 @@ void CN105Climate::writePacket(uint8_t* packet, int length, bool checkIsActive) 
 
 void CN105Climate::try_write_pending_packet() {
     if (!this->has_pending_packet_) return;
-    if ((short_cycle_switch_ || heat_handoff_.configured) && pending_packet_len_ > 8 &&
+    if (heat_handoff_.configured && pending_packet_len_ > 8 &&
         pending_packet_[1] == 0x41 && pending_packet_[5] == 0x07) {
         // Recompute at retry time: source freshness, switch, target or mode may have changed.
         has_pending_packet_ = false;
@@ -334,7 +334,7 @@ void CN105Climate::createInfoPacket(uint8_t* packet, uint8_t code) {
 void CN105Climate::sendRemoteTemperaturePacket() {
     if (!this->profile_->allow_operation(cn105::ProfileFeature::REMOTE_TEMPERATURE)) return;
 
-    const float wire_temperature = getDeadbandAdjustedTemperature(remoteTemperature_);
+    const float wire_temperature = getCoordinatedRemoteTemperature(remoteTemperature_);
 
     // Build and send the remote temperature packet (0x07) without affecting watchdog/keep-alive timers
 
