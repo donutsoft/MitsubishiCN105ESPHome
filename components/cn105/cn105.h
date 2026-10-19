@@ -5,6 +5,7 @@
 #include "protocol_profile.h"
 #include "frame_parser.h"
 #include "short_cycle_protection.h"
+#include "heat_handoff.h"
 #include "esphome/components/uart/uart.h"
 #include "heatpumpFunctions.h"
 #include "van_orientation_select.h"
@@ -239,6 +240,23 @@ namespace esphome {
         void update_short_cycle_protection();
         bool short_cycle_sample_fresh() const;
 
+        void set_heat_handoff_member_id(const std::string& member_id);
+        void set_heat_handoff_coordinator_id(const std::string& coordinator_id);
+        void set_heat_handoff_topic_prefix(const std::string& topic_prefix);
+        void add_heat_handoff_peer(const std::string& member_id);
+        void set_heat_handoff_enabled(bool enabled);
+        void set_heat_handoff_switch(HVACOptionSwitch* control);
+        void set_heat_handoff_lower_offset(float value) { heat_handoff_.lower_offset = value; }
+        void set_heat_handoff_upper_offset(float value) { heat_handoff_.upper_offset = value; }
+        void set_heat_handoff_call_bias(float value) { heat_handoff_.call_bias = value; }
+        void set_heat_handoff_idle_bias(float value) { heat_handoff_.idle_bias = value; }
+        void set_heat_handoff_switch_margin(float value) { heat_handoff_.switch_margin = value; }
+        void set_heat_handoff_minimum_hold(uint32_t value) { heat_handoff_.minimum_hold_ms = value; }
+        void set_heat_handoff_peer_timeout(uint32_t value) { heat_handoff_peer_timeout_ms_ = value; }
+        void set_heat_handoff_publish_interval(uint32_t value) { heat_handoff_publish_interval_ms_ = value; }
+        void setup_heat_handoff_mqtt();
+        void update_heat_handoff();
+
         void set_remote_temp_timeout(uint32_t timeout);
 
         // Configure the interval for remote temperature keep-alive (in milliseconds)
@@ -449,6 +467,42 @@ namespace esphome {
         cn105::ShortCycleProtection short_cycle_;
         bool short_cycle_own_call_{false}, short_cycle_sample_seen_{false};
         uint32_t short_cycle_sample_ms_{0};
+
+        struct HeatHandoffPeerState {
+            std::string member_id;
+            bool enabled{false};
+            bool heating_mode{false};
+            bool sensor_fresh{false};
+            cn105::HeatHandoff::Zone zone{cn105::HeatHandoff::UNAVAILABLE};
+            float error{NAN};
+            uint32_t updated_ms{0};
+        };
+        cn105::HeatHandoff heat_handoff_;
+        HVACOptionSwitch* heat_handoff_switch_{nullptr};
+        std::string heat_handoff_member_id_;
+        std::string heat_handoff_coordinator_id_;
+        std::string heat_handoff_topic_prefix_;
+        std::vector<HeatHandoffPeerState> heat_handoff_peers_;
+        std::string heat_handoff_last_state_payload_;
+        std::string heat_handoff_owner_;
+        uint32_t heat_handoff_generation_{0};
+        uint32_t heat_handoff_owner_since_ms_{0};
+        uint32_t heat_handoff_peer_timeout_ms_{20000};
+        uint32_t heat_handoff_publish_interval_ms_{5000};
+        uint32_t heat_handoff_last_state_publish_ms_{0};
+        uint32_t heat_handoff_last_assignment_publish_ms_{0};
+        uint32_t heat_handoff_assignment_received_ms_{0};
+        bool heat_handoff_assignment_active_{false};
+        bool heat_handoff_states_ready_{false};
+        bool heat_handoff_mqtt_ready_{false};
+        void handle_heat_handoff_peer_message_(const std::string& member_id, const std::string& payload);
+        void handle_heat_handoff_assignment_(const std::string& payload);
+        void publish_heat_handoff_state_(bool force = false);
+        bool publish_heat_handoff_assignment_(bool active, const std::string& owner, bool force = false);
+        bool heat_handoff_peer_fresh_(const HeatHandoffPeerState& peer, uint32_t now) const;
+        bool heat_handoff_assignment_fresh_(uint32_t now) const;
+        bool heat_handoff_member_known_(const std::string& member_id) const;
+        void mark_heat_handoff_temperature_dirty_();
         heatpumpSettings currentSettings{};
         wantedHeatpumpSettings wantedSettings{};
         heatpumpRunStates currentRunStates{};

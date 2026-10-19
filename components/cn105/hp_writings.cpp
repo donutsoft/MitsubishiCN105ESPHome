@@ -126,7 +126,8 @@ void CN105Climate::writePacket(uint8_t* packet, int length, bool checkIsActive) 
 
 void CN105Climate::try_write_pending_packet() {
     if (!this->has_pending_packet_) return;
-    if (short_cycle_switch_ && pending_packet_len_ > 8 && pending_packet_[1] == 0x41 && pending_packet_[5] == 0x07) {
+    if ((short_cycle_switch_ || heat_handoff_.configured) && pending_packet_len_ > 8 &&
+        pending_packet_[1] == 0x41 && pending_packet_[5] == 0x07) {
         // Recompute at retry time: source freshness, switch, target or mode may have changed.
         has_pending_packet_ = false;
         shouldSendExternalTemperature_ = true;

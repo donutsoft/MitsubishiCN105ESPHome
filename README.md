@@ -1436,3 +1436,55 @@ while the head is already OFF cannot be detected over CN105.
 
 This encourages longer heating runs without guaranteeing compressor speed or
 refrigerant distribution. Confirm actual OFF/bleed behavior on your equipment.
+
+## Coordinated MQTT heat handoff
+
+`heat_handoff` coordinates heads on one outdoor unit by temperature error rather
+than by compressor power or `GENTLE` stage. All configured heads publish fresh
+heat-mode and room-temperature state. A fixed coordinator assigns one owner to
+the shared deadband, selecting the room furthest below its setpoint.
+
+```yaml
+mqtt:
+  broker: 192.0.2.1
+
+climate:
+  - platform: cn105
+    id: attichp
+    remote_temperature_timeout: 120s
+    heat_handoff:
+      # This node's identity defaults to its climate id: attichp.
+      members: [attichp, guestroomhp, paulofficehp]
+      coordinator_id: attichp          # identical on every head
+      topic_prefix: cn105/east/heat_handoff
+      enabled_switch:
+        name: Coordinated heat handoff
+```
+
+With the defaults, rooms from 0.5°C below through 0.5°C above target are inside
+the coordinated deadband. The owner temporarily reports target minus 0.5°C; the
+other deadband rooms simultaneously report target plus 1.0°C. This changes the
+CN105 heat request without changing the visible setpoint. An owner is held for
+at least five minutes and a challenger must be at least 0.3°C colder relative to
+its own target, preventing rapid handoff oscillation.
+
+A room below the lower boundary is urgent and always uses its real temperature.
+While any room is urgent, all deadband rooms are suppressed instead of adding a
+second discretionary call. Rooms above the upper boundary also use their real
+temperature. Thus coordination never suppresses genuine below-band demand.
+
+Assignments carry a generation number and are sent on one non-retained MQTT
+topic, so the previous and next owners react to the same publication. This is a
+near-simultaneous request handoff; the indoor units' physical CN105 response is
+not atomic. Coordination fails open to normal local temperature control if any
+member, sensor, coordinator assignment, or MQTT heartbeat becomes stale. When
+an `enabled_switch` is configured it starts OFF after every boot, and all heads'
+switches must be ON before coordination begins.
+
+Each head's climate `id` must be unique within the outdoor-unit group and must
+appear in the shared `members` list. If separate device configurations reuse a
+generic climate ID such as `heatpump`, set an explicit unique `member_id`
+instead. Every head must use the same member list, coordinator, thresholds, and
+topic.
+See the complete three-head template in
+[`examples/heat-handoff/heatpump.yaml`](examples/heat-handoff/heatpump.yaml).

@@ -15,15 +15,24 @@ bool CN105Climate::short_cycle_sample_fresh() const {
     return short_cycle_sample_seen_ && static_cast<uint32_t>(CUSTOM_MILLIS - short_cycle_sample_ms_) < remote_temp_timeout_;
 }
 float CN105Climate::getDeadbandAdjustedTemperature(float actual) {
-    if (!short_cycle_switch_) return actual;
+    if (!short_cycle_switch_ && !heat_handoff_.configured) return actual;
     if (!short_cycle_sample_fresh()) return 0;
-    const float value = short_cycle_.temperature(mode == climate::CLIMATE_MODE_HEAT, actual, getTargetTemperature());
+    const float target = getTargetTemperature();
+    float value = actual;
+    if (short_cycle_switch_)
+        value = short_cycle_.temperature(mode == climate::CLIMATE_MODE_HEAT, value, target);
+    const uint32_t now = CUSTOM_MILLIS;
+    const bool assignment_active = heat_handoff_.configured && heat_handoff_states_ready_ &&
+        heat_handoff_assignment_fresh_(now) && heat_handoff_assignment_active_;
+    value = heat_handoff_.temperature(mode == climate::CLIMATE_MODE_HEAT, true,
+        value, target, assignment_active, heat_handoff_owner_ == heat_handoff_member_id_);
     return std::round(value * 2) / 2;
 }
 void CN105Climate::update_short_cycle_protection() {
-    if (!short_cycle_switch_) return;
+    if (!short_cycle_switch_ && !heat_handoff_.configured) return;
     if (getDeadbandAdjustedTemperature(remoteTemperature_) != last_remote_temp_sent_)
         shouldSendExternalTemperature_ = true;
+    if (!short_cycle_switch_) return;
     if (!isHeatpumpConnected() || !currentSettings.connected ||
         wantedSettings.hasChanged || wantedSettings.hasBeenSent) return;
     // Observable IR mode changes also cancel restart ownership. Repeated IR OFF

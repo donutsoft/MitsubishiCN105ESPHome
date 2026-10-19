@@ -240,7 +240,7 @@ void CN105Climate::setAirflowControlSetting(const char* setting) {
 }
 
 void CN105Climate::set_remote_temperature(float setting) {
-    if (short_cycle_switch_) {
+    if (short_cycle_switch_ || heat_handoff_.configured) {
         short_cycle_sample_seen_ = std::isfinite(setting) && setting >= 8 && setting <= 60;
         short_cycle_sample_ms_ = CUSTOM_MILLIS;
         if (!short_cycle_sample_seen_) setting = 0; // Invalid source: use internal sensing.

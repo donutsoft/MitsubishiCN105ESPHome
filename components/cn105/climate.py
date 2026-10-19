@@ -148,6 +148,20 @@ CONF_REMOTE_TEMPERATURE_CONTROL_SENSOR = "remote_temperature_control_sensor"
 CONF_TEMPERATURE_MARGIN = "temperature_margin"
 CONF_POWER_UNIT_IS_BTU = "power_unit_is_btu"
 CONF_REPORT_WHEN_IDLE = "report_when_idle"
+CONF_HEAT_HANDOFF = "heat_handoff"
+CONF_MEMBER_ID = "member_id"
+CONF_MEMBERS = "members"
+CONF_COORDINATOR_ID = "coordinator_id"
+CONF_TOPIC_PREFIX = "topic_prefix"
+CONF_ENABLED_SWITCH = "enabled_switch"
+CONF_LOWER_OFFSET = "lower_offset"
+CONF_UPPER_OFFSET = "upper_offset"
+CONF_CALL_BIAS = "call_bias"
+CONF_IDLE_BIAS = "idle_bias"
+CONF_SWITCH_MARGIN = "switch_margin"
+CONF_MINIMUM_HOLD_TIME = "minimum_hold_time"
+CONF_PEER_TIMEOUT = "peer_timeout"
+CONF_PUBLISH_INTERVAL = "publish_interval"
 
 # Support explicite du DUAL setpoint via YAML
 CONF_DUAL_SETPOINT = "dual_setpoint"
@@ -156,6 +170,20 @@ CONF_RESTORE_SETPOINTS = "restore_setpoints"
 DEFAULT_CLIMATE_MODES = ["AUTO", "COOL", "HEAT", "DRY", "FAN_ONLY", "HEAT_COOL"]
 DEFAULT_FAN_MODES = ["AUTO", "MIDDLE", "QUIET", "LOW", "MEDIUM", "HIGH"]
 DEFAULT_SWING_MODES = ["OFF", "VERTICAL", "HORIZONTAL", "BOTH"]
+
+
+def validate_handoff_member(value):
+    value = cv.string_strict(value)
+    if (
+        not value
+        or len(value) > 39
+        or any(not (char.isalnum() or char in "_-") for char in value)
+    ):
+        raise cv.Invalid(
+            "Heat-handoff member IDs must be 1-39 letters, numbers, '_' or '-'"
+        )
+    return value
+
 
 FAHRENHEIT_MODES = {
     "disabled": 0,
@@ -248,6 +276,37 @@ FlowControlSensor = cg.global_ns.class_(
 HVACOptionSwitch = cg.global_ns.class_("HVACOptionSwitch", switch.Switch, cg.Component)
 HardwareSettingSelect = cg.global_ns.class_(
     "HardwareSettingSelect", select.Select, cg.Component
+)
+
+HEAT_HANDOFF_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_MEMBER_ID): validate_handoff_member,
+        cv.Required(CONF_MEMBERS): cv.All(
+            cv.ensure_list(validate_handoff_member), cv.Length(min=2)
+        ),
+        cv.Optional(CONF_COORDINATOR_ID): validate_handoff_member,
+        cv.Optional(CONF_TOPIC_PREFIX, default="cn105/heat_handoff"): cv.publish_topic,
+        cv.Optional(CONF_ENABLED_SWITCH): switch.switch_schema(
+            HVACOptionSwitch, block_inverted=True, default_restore_mode="ALWAYS_OFF"
+        ),
+        cv.Optional(CONF_LOWER_OFFSET, default=-0.5): cv.float_range(
+            min=-2.0, max=0.0
+        ),
+        cv.Optional(CONF_UPPER_OFFSET, default=0.5): cv.float_range(
+            min=0.0, max=2.0
+        ),
+        cv.Optional(CONF_CALL_BIAS, default=0.5): cv.float_range(min=0.1, max=2.0),
+        cv.Optional(CONF_IDLE_BIAS, default=1.0): cv.float_range(min=0.1, max=3.0),
+        cv.Optional(CONF_SWITCH_MARGIN, default=0.3): cv.float_range(
+            min=0.0, max=2.0
+        ),
+        cv.Optional(CONF_MINIMUM_HOLD_TIME, default="5min"):
+            cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_PEER_TIMEOUT, default="20s"):
+            cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_PUBLISH_INTERVAL, default="5s"):
+            cv.positive_time_period_milliseconds,
+    }
 )
 
 
@@ -535,6 +594,9 @@ CONFIG_SCHEMA = (
             cv.Optional("short_cycle_protection_switch"): switch.switch_schema(
                 HVACOptionSwitch, block_inverted=True, default_restore_mode="ALWAYS_OFF"
             ),
+            cv.Optional(CONF_HEAT_HANDOFF): cv.All(
+                cv.requires_component("mqtt"), HEAT_HANDOFF_SCHEMA
+            ),
             cv.Optional(CONF_REMOTE_TEMP_TIMEOUT, default="never"): cv.All(
                 cv.update_interval
             ),
@@ -604,7 +666,48 @@ def validate_short_cycle_protection(config):
     return config
 
 
-CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, validate_lossnay_config, validate_short_cycle_protection)
+def validate_heat_handoff(config):
+    if CONF_HEAT_HANDOFF not in config:
+        return config
+    if config.get(CONF_LOSSNAY, False):
+        raise cv.Invalid("Heat handoff requires a heat pump, not Lossnay")
+    handoff = config[CONF_HEAT_HANDOFF]
+    members = handoff[CONF_MEMBERS]
+    member_id = validate_handoff_member(
+        handoff.get(CONF_MEMBER_ID, str(config[CONF_ID]))
+    )
+    if len(set(members)) != len(members):
+        raise cv.Invalid("Heat-handoff members must be unique")
+    if member_id not in members:
+        raise cv.Invalid(
+            "The climate id (or member_id override) must appear in "
+            "heat-handoff members"
+        )
+    coordinator = handoff.get(CONF_COORDINATOR_ID, min(members))
+    if coordinator not in members:
+        raise cv.Invalid("Heat-handoff coordinator_id must appear in members")
+    if handoff[CONF_LOWER_OFFSET] >= handoff[CONF_UPPER_OFFSET]:
+        raise cv.Invalid("lower_offset must be less than upper_offset")
+    if handoff[CONF_IDLE_BIAS] <= handoff[CONF_UPPER_OFFSET]:
+        raise cv.Invalid("idle_bias must be greater than upper_offset")
+    if (
+        handoff[CONF_PEER_TIMEOUT].total_milliseconds
+        <= handoff[CONF_PUBLISH_INTERVAL].total_milliseconds * 2
+    ):
+        raise cv.Invalid("peer_timeout must exceed twice publish_interval")
+    if not 10000 <= config[CONF_REMOTE_TEMP_TIMEOUT].total_milliseconds <= 120000:
+        raise cv.Invalid(
+            "Heat handoff requires remote_temperature_timeout between 10s and 120s"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    CONFIG_SCHEMA,
+    validate_lossnay_config,
+    validate_short_cycle_protection,
+    validate_heat_handoff,
+)
 
 
 @coroutine
@@ -892,6 +995,44 @@ def to_code(config):
         control = yield switch.new_switch(conf)
         yield cg.register_component(control, conf)
         cg.add(var.set_short_cycle_protection_switch(control))
+
+    if CONF_HEAT_HANDOFF in config:
+        handoff = config[CONF_HEAT_HANDOFF]
+        member_id = handoff.get(CONF_MEMBER_ID, str(config[CONF_ID]))
+        members = handoff[CONF_MEMBERS]
+        coordinator_id = handoff.get(CONF_COORDINATOR_ID, min(members))
+        cg.add(var.set_heat_handoff_member_id(member_id))
+        cg.add(var.set_heat_handoff_coordinator_id(coordinator_id))
+        cg.add(var.set_heat_handoff_topic_prefix(handoff[CONF_TOPIC_PREFIX]))
+        for peer in members:
+            if peer != member_id:
+                cg.add(var.add_heat_handoff_peer(peer))
+        cg.add(var.set_heat_handoff_lower_offset(handoff[CONF_LOWER_OFFSET]))
+        cg.add(var.set_heat_handoff_upper_offset(handoff[CONF_UPPER_OFFSET]))
+        cg.add(var.set_heat_handoff_call_bias(handoff[CONF_CALL_BIAS]))
+        cg.add(var.set_heat_handoff_idle_bias(handoff[CONF_IDLE_BIAS]))
+        cg.add(var.set_heat_handoff_switch_margin(handoff[CONF_SWITCH_MARGIN]))
+        cg.add(
+            var.set_heat_handoff_minimum_hold(
+                handoff[CONF_MINIMUM_HOLD_TIME].total_milliseconds
+            )
+        )
+        cg.add(
+            var.set_heat_handoff_peer_timeout(
+                handoff[CONF_PEER_TIMEOUT].total_milliseconds
+            )
+        )
+        cg.add(
+            var.set_heat_handoff_publish_interval(
+                handoff[CONF_PUBLISH_INTERVAL].total_milliseconds
+            )
+        )
+        if CONF_ENABLED_SWITCH in handoff:
+            control = yield switch.new_switch(handoff[CONF_ENABLED_SWITCH])
+            yield cg.register_component(control, handoff[CONF_ENABLED_SWITCH])
+            cg.add(var.set_heat_handoff_switch(control))
+        else:
+            cg.add(var.set_heat_handoff_enabled(True))
 
     if CONF_REMOTE_TEMP_SOURCE in config:
         rts_config = config[CONF_REMOTE_TEMP_SOURCE]

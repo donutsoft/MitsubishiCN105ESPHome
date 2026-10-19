@@ -51,6 +51,7 @@ void CN105Climate::setup() {
     // Restore a previously-saved HEAT_COOL band (opt-in) before the first settings read,
     // so the profile reconciliation keeps HEAT_COOL instead of falling back to AUTO.
     this->restore_setpoint_state_();
+    this->setup_heat_handoff_mqtt();
 }
 
 
@@ -59,6 +60,7 @@ void CN105Climate::setup() {
  * This function is called repeatedly in the main program loop.
  */
 void CN105Climate::loop() {
+    this->update_heat_handoff();
     this->update_short_cycle_protection();
     // Bootstrap connection CN105 (UART + CONNECT) from loop()
     this->maybe_start_connection_();

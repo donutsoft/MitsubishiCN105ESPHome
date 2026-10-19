@@ -1,0 +1,71 @@
+# Build this template for each indoor head. Change climate_id and device_name;
+# keep coordinator_id, members, thresholds and MQTT topic identical.
+substitutions:
+  climate_id: attic_hp
+  device_name: attic-hvac
+
+esphome:
+  name: ${device_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: replace-with-your-ssid
+  password: replace-with-your-password
+
+mqtt:
+  broker: 192.0.2.1
+  username: replace-with-your-username
+  password: replace-with-your-password
+
+logger:
+  baud_rate: 0
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components: [cn105]
+
+uart:
+  id: hp_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 2400
+  parity: EVEN
+
+api:
+  reboot_timeout: 0s
+  services:
+    - service: set_remote_temperature
+      variables:
+        temperature: float
+      then:
+        - lambda: 'id(${climate_id}).set_remote_temperature(temperature);'
+
+climate:
+  - platform: cn105
+    id: ${climate_id}
+    name: Heat pump
+    uart_id: hp_uart
+    remote_temperature_timeout: 120s
+    remote_temperature_keepalive_interval: 20s
+    heat_handoff:
+      # This node's member identity defaults to its climate id.
+      members: [attic_hp, guest_room_hp, paul_office_hp]
+      coordinator_id: attic_hp
+      topic_prefix: cn105/east/heat_handoff
+      enabled_switch:
+        name: Coordinated heat handoff
+      # All offsets are Celsius. Defaults are shown explicitly.
+      lower_offset: -0.5
+      upper_offset: 0.5
+      call_bias: 0.5
+      idle_bias: 1.0
+      switch_margin: 0.3
+      minimum_hold_time: 5min
+      publish_interval: 5s
+      peer_timeout: 20s
