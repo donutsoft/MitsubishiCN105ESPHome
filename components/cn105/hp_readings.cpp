@@ -249,7 +249,9 @@ void CN105Climate::statusChanged(heatpumpStatus status) {
         }
 
         if (this->outside_air_temperature_sensor_ != nullptr) {
-            this->outside_air_temperature_sensor_->publish_state(this->fahrenheitSupport_.normalizeHeatpumpTemperatureToUiTemperature(currentStatus.outsideAirTemperature));
+            // Outdoor readings are Celsius measurements, not thermostat setpoints.
+            // The Fahrenheit compatibility table would clamp them to its setpoint range.
+            this->outside_air_temperature_sensor_->publish_state(currentStatus.outsideAirTemperature);
         }
     } // else no change
 }
